@@ -5,9 +5,14 @@ ALLOWED_URGENCIES = ("low", "medium", "high")
 
 
 def calculate_priority(urgency, affected_users):
-    """Placeholder. The real rules are built in Issue #2."""
+    """Return critical/high/medium/low. Rules are checked in order; first match wins."""
+    if urgency == "high" and affected_users >= 10:
+        return "critical"
+    if urgency == "high" or affected_users >= 10:
+        return "high"
+    if urgency == "medium" or affected_users >= 3:
+        return "medium"
     return "low"
-
 
 def validate_title(title):
     """Return the stripped title. Raise ValueError if blank or not a string."""

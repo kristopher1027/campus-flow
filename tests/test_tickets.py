@@ -1,6 +1,7 @@
 import unittest
 
 from campusflow.tickets import (
+    calculate_priority,
     create_ticket,
     generate_next_id,
     validate_affected_users,
@@ -105,6 +106,38 @@ class TestIds(unittest.TestCase):
         self.assertEqual(first["id"], "T001")
         self.assertEqual(second["id"], "T002")
 
+
+class TestPriority(unittest.TestCase):
+
+    def test_required_acceptance_scenarios(self):
+        cases = [
+            ("high", 12, "critical"),
+            ("high", 2, "high"),
+            ("low", 4, "medium"),
+            ("low", 1, "low"),
+        ]
+        for urgency, users, expected in cases:
+            with self.subTest(urgency=urgency, users=users):
+                self.assertEqual(calculate_priority(urgency, users), expected)
+
+    def test_boundaries(self):
+        cases = [
+            ("high", 10, "critical"),
+            ("high", 9, "high"),
+            ("medium", 9, "medium"),
+            ("medium", 10, "high"),
+            ("low", 10, "high"),
+            ("low", 3, "medium"),
+            ("low", 2, "low"),
+            ("medium", 1, "medium"),
+        ]
+        for urgency, users, expected in cases:
+            with self.subTest(urgency=urgency, users=users):
+                self.assertEqual(calculate_priority(urgency, users), expected)
+
+    def test_create_ticket_calculates_priority(self):
+        ticket = create_ticket([], "Wi-Fi down", "Network", "HIGH", "12")
+        self.assertEqual(ticket["priority"], "critical")
 
 if __name__ == "__main__":
     unittest.main()
