@@ -1,6 +1,12 @@
 import unittest
-from campusflow.reports import get_ticket, list_tickets, work_queue, report_summary
-
+from campusflow.reports import (
+    get_ticket,
+    list_tickets,
+    work_queue,
+    report_summary,
+    generate_report,
+    format_report,
+)
 
 def make_ticket(tid, priority="high", status="open"):
     return {
@@ -90,6 +96,55 @@ class TestReportSummary(unittest.TestCase):
         self.assertEqual(summary["by_priority"]["high"], 2)
         self.assertEqual(summary["by_priority"]["critical"], 1)
 
+
+class TestGenerateReport(unittest.TestCase):
+
+    def test_empty_report_has_all_zero_counts(self):
+        report = generate_report([])
+
+        self.assertEqual(report["total"], 0)
+        self.assertEqual(
+            report["by_status"],
+            {"open": 0, "in_progress": 0, "resolved": 0},
+        )
+        self.assertEqual(
+            report["by_priority"],
+            {"critical": 0, "high": 0, "medium": 0, "low": 0},
+        )
+
+    def test_counts_statuses_and_priorities(self):
+        tickets = [
+            make_ticket("T001", priority="critical", status="open"),
+            make_ticket("T002", priority="high", status="in_progress"),
+            make_ticket("T003", priority="high", status="resolved"),
+            make_ticket("T004", priority="low", status="open"),
+        ]
+
+        report = generate_report(tickets)
+
+        self.assertEqual(report["total"], 4)
+        self.assertEqual(
+            sum(report["by_status"].values()),
+            report["total"],
+        )
+        self.assertEqual(
+            sum(report["by_priority"].values()),
+            report["total"],
+        )
+        self.assertEqual(report["by_status"]["open"], 2)
+        self.assertEqual(report["by_priority"]["high"], 2)
+
+    def test_formatter_includes_counts_in_consistent_order(self):
+        report = generate_report([
+            make_ticket("T001", priority="critical", status="open"),
+        ])
+
+        output = format_report(report)
+
+        self.assertIn("Total tickets: 1", output)
+        self.assertLess(output.index("open:"), output.index("in_progress:"))
+        self.assertLess(output.index("critical:"), output.index("high:"))
+        self.assertIn("low: 0", output)
 
 if __name__ == "__main__":
     unittest.main()
