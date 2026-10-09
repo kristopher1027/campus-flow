@@ -99,3 +99,47 @@ def create_ticket(tickets, title, category, urgency, affected_users):
     tickets.append(ticket)   # the very last step that touches the list
     return ticket
 
+def find_ticket(tickets, ticket_id):
+    """Return the ticket with this ID. Tolerates case and whitespace.
+
+    Raise ValueError if the ID is not text or no ticket matches.
+    """
+    if not isinstance(ticket_id, str):
+        raise ValueError("Ticket ID must be text, for example T001.")
+    wanted = ticket_id.strip().upper()
+    for ticket in tickets:
+        if ticket["id"] == wanted:
+            return ticket
+    raise ValueError(f"No ticket found with ID '{ticket_id.strip()}'.")
+
+
+def format_ticket_summary(ticket):
+    """Return a one-line summary: ID | title | priority | status | assignee."""
+    assignee = ticket["assigned_to"] or "Unassigned"
+    return (
+        f"{ticket['id']} | {ticket['title']} | {ticket['priority']} | "
+        f"{ticket['status']} | {assignee}"
+    )
+
+
+def format_ticket_details(ticket):
+    """Return a multi-line text showing all 8 fields of one ticket."""
+    assignee = ticket["assigned_to"] or "Unassigned"
+    lines = [
+        f"ID:             {ticket['id']}",
+        f"Title:          {ticket['title']}",
+        f"Category:       {ticket['category']}",
+        f"Urgency:        {ticket['urgency']}",
+        f"Affected users: {ticket['affected_users']}",
+        f"Priority:       {ticket['priority']}",
+        f"Status:         {ticket['status']}",
+        f"Assigned to:    {assignee}",
+    ]
+    return "\n".join(lines)
+
+
+def format_ticket_list(tickets):
+    """Return one summary line per ticket, or a friendly message if empty."""
+    if not tickets:
+        return "No tickets yet."
+    return "\n".join(format_ticket_summary(t) for t in tickets)
