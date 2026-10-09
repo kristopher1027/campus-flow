@@ -3,6 +3,10 @@ import unittest
 from campusflow.tickets import (
     calculate_priority,
     create_ticket,
+    find_ticket,
+    format_ticket_details,
+    format_ticket_list,
+    format_ticket_summary,
     generate_next_id,
     validate_affected_users,
 )
@@ -138,6 +142,87 @@ class TestPriority(unittest.TestCase):
     def test_create_ticket_calculates_priority(self):
         ticket = create_ticket([], "Wi-Fi down", "Network", "HIGH", "12")
         self.assertEqual(ticket["priority"], "critical")
+
+def make_ticket(**overrides):
+    """Build a complete ticket dict for tests; override any field."""
+    ticket = {
+        "id": "T001",
+        "title": "Wi-Fi down",
+        "category": "Network",
+        "urgency": "high",
+        "affected_users": 15,
+        "priority": "critical",
+        "status": "open",
+        "assigned_to": None,
+    }
+    ticket.update(overrides)
+    return ticket
+
+
+class TestFindTicket(unittest.TestCase):
+
+    def test_finds_existing_ticket(self):
+        tickets = [make_ticket(id="T001"), make_ticket(id="T002")]
+        self.assertEqual(find_ticket(tickets, "T002")["id"], "T002")
+
+    def test_tolerates_case_and_whitespace(self):
+        tickets = [make_ticket(id="T001")]
+        for raw in ("t001", " T001 ", " t001"):
+            with self.subTest(raw=raw):
+                self.assertEqual(find_ticket(tickets, raw)["id"], "T001")
+
+    def test_unknown_id_raises(self):
+        with self.assertRaises(ValueError):
+            find_ticket([make_ticket()], "T999")
+
+    def test_blank_or_non_text_id_raises(self):
+        for bad in ("", "   ", None, 1):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    find_ticket([make_ticket()], bad)
+
+    def test_lookup_on_empty_list_raises(self):
+        with self.assertRaises(ValueError):
+            find_ticket([], "T001")
+
+
+class TestFormatting(unittest.TestCase):
+
+    def test_summary_contains_key_fields(self):
+        text = format_ticket_summary(
+            make_ticket(id="T007", title="Printer jam", priority="low",
+                        status="in_progress", assigned_to="Ada")
+        )
+        for expected in ("T007", "Printer jam", "low", "in_progress", "Ada"):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, text)
+
+    def test_summary_shows_unassigned_not_none(self):
+        text = format_ticket_summary(make_ticket(assigned_to=None))
+        self.assertIn("Unassigned", text)
+        self.assertNotIn("None", text)
+
+    def test_details_show_all_eight_fields(self):
+        text = format_ticket_details(make_ticket(assigned_to="Ada"))
+        for expected in ("T001", "Wi-Fi down", "Network", "high",
+                         "15", "critical", "open", "Ada"):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, text)
+
+    def test_details_show_unassigned_not_none(self):
+        text = format_ticket_details(make_ticket(assigned_to=None))
+        self.assertIn("Unassigned", text)
+        self.assertNotIn("None", text)
+
+    def test_empty_list_shows_friendly_message(self):
+        self.assertEqual(format_ticket_list([]), "No tickets yet.")
+
+    def test_list_has_one_line_per_ticket(self):
+        tickets = [make_ticket(id="T001"), make_ticket(id="T002")]
+        lines = format_ticket_list(tickets).splitlines()
+        self.assertEqual(len(lines), 2)
+        self.assertIn("T001", lines[0])
+        self.assertIn("T002", lines[1])
 
 if __name__ == "__main__":
     unittest.main()
