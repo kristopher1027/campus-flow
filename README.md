@@ -1,124 +1,98 @@
 # CampusFlow
 
-A command-line ticket management system for Learn2Earn campus technical support.
+CampusFlow is a Python command-line helpdesk for managing campus IT support tickets. It helps a small support team record requests, calculate their priority, assign staff, track work, and review a summary of open and resolved tickets.
 
-## Problem
+## Problem statement
 
-Campus staff receive technical requests — Wi-Fi outages, faulty laptops, broken development environments, inaccessible platforms — through informal channels. Reports get lost, priorities are unclear, and no one knows who is working on what.
-
-CampusFlow records every ticket, calculates priority using a fixed rule set, assigns responsibility, tracks progress through a workflow, and generates reports. It runs entirely in the terminal using only the Python standard library.
+Campus IT requests such as Wi-Fi outages, faulty laptops, and inaccessible software can arrive through informal channels. Without a shared record, requests can be missed, urgency can be inconsistent, and staff may not know who is responsible. CampusFlow provides a lightweight, local ticket list and a repeatable workflow.
 
 ## Fellows and contributions
 
-- **Kristopher (Engineer A)** — ticket creation, input validation, priority engine, JSON storage, and the README.
-- **Moshel9ice (Engineer B)** — assignment, status workflow, work queue, reports, and CLI menu handlers.
+- **Kristopher Okoh (Engineer A):** ticket creation and validation, priority calculation, ticket IDs, JSON storage, and project documentation.
+- **Moshel9ice (Engineer B):** ticket assignment, status transitions, prioritized work queue, and ticket reports.
+- **Shared work:** integration through the CLI, tests, and review of the combined behavior.
 
-Both fellows wrote automated tests for their own features and reviewed each other's pull requests before merging.
+Relevant merged pull requests:
+- Engineer A — [Ticket creation and validation, PR #13](https://github.com/kristopher1027/campus-flow/pull/13) and [priority engine, PR #15](https://github.com/kristopher1027/campus-flow/pull/15).
+- Engineer B — [Assignment, workflow, queue and reports, PR #12](https://github.com/kristopher1027/campus-flow/pull/12) and [ticket summary reports, PR #17](https://github.com/kristopher1027/campus-flow/pull/17).
+- Shared integration — [JSON storage, PR #18](https://github.com/kristopher1027/campus-flow/pull/18) and [CLI menu, PR #19](https://github.com/kristopher1027/campus-flow/pull/19).
 
-## Python version
+## Requirements
 
-Python 3.10 or later. No third-party packages required — standard library only (`json`, `os`, `unittest`).
+- Python 3.10 or later (project target).
+- No third-party packages; the application uses Python's standard library.
 
-## Project structure
-campus-flow/
-├── README.md
-├── .gitignore
-├── main.py
-├── campusflow/
-│ ├── init.py
-│ ├── tickets.py
-│ ├── workflow.py
-│ ├── reports.py
-│ └── storage.py
-├── tests/
-│ ├── test_tickets.py
-│ ├── test_workflow.py
-│ ├── test_reports.py
-│ └── test_storage.py
-└── docs/
-├── design-decisions.md
-└── ai-learning-log.md
+## Run the application
 
-text
+From the repository root:
 
-## How to run
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/kristopher1027/campus-flow.git
-   cd campus-flow
-Run the program:
-
-bash
+```bash
+python3 --version
 python3 main.py
-Choose a menu option by typing its number and pressing Enter.
+```
 
-Menu options
-text
---- CampusFlow ---
-1. Create ticket
-2. List tickets
-3. View ticket
-4. Assign ticket
-5. Change status
-6. Work queue
-7. Report
-8. Exit
-How to test
-From the project root:
+The menu lets you create, list, and view tickets; assign a ticket; change its status; display the work queue; view a report; or exit. Enter the number for the action you want and follow the prompts.
 
-bash
+## Run the tests
+
+From the repository root:
+
+```bash
 python3 -m unittest discover -s tests -v
-All tests should pass. The suite covers priority boundaries, validation, workflow transitions, queue ordering, reports, and storage round-trips.
+```
 
-Priority rules
-Priority is calculated by calculate_priority() in campusflow/tickets.py. Rules are applied in order and the first match wins:
+The tests use Python's built-in `unittest` framework. The committed integration test output records **59 tests passing** on the documented `main` revision; run the command above to verify the current checkout.
 
-Rule	Condition	Result
-1	high urgency AND affected_users >= 10	critical
-2	high urgency OR affected_users >= 10	high
-3	medium urgency OR affected_users >= 3	medium
-4	all other valid tickets	low
-Status rules
-A ticket's status follows a fixed workflow enforced by transition_status() in campusflow/workflow.py:
+## Priority rules
 
-From	To	Allowed?
-open	in_progress	Only if assigned_to is not None
-in_progress	resolved	Yes
-resolved	open	Yes (reopen)
-any other	—	Rejected with ValueError
-An unassigned ticket cannot move to in_progress. A resolved ticket cannot be modified until it is explicitly reopened to open.
+Priority is calculated by `calculate_priority()` in `campusflow/tickets.py`. Rules are evaluated in order; the first matching rule wins.
 
-Where data is saved
-Tickets are saved to data/tickets.json (git-ignored).
+| Condition | Priority |
+|---|---|
+| Urgency is high **and** at least 10 users are affected | critical |
+| Urgency is high **or** at least 10 users are affected | high |
+| Urgency is medium **or** at least 3 users are affected | medium |
+| None of the above | low |
 
-The file is created automatically on first save.
+A ticket must have a non-blank title, a supported category (`Network`, `Hardware`, `Software`, or `Other`), a supported urgency (`low`, `medium`, or `high`), and a positive whole number of affected users.
 
-To start fresh, delete the file:
+## Status workflow
 
-bash
-rm data/tickets.json
-A missing file is treated as a fresh start (no error).
+The workflow is enforced by `transition_status()` in `campusflow/workflow.py`.
 
-A malformed file raises a clear error instead of silently wiping data.
+| Current status | Next status | Rule |
+|---|---|---|
+| `open` | `in_progress` | Allowed only after the ticket has an assignee |
+| `in_progress` | `resolved` | Allowed |
+| `resolved` | `open` | Allowed to explicitly reopen the ticket |
+| Any other transition | — | Rejected with `ValueError` |
 
-Known limitations
-Ctrl+C during input is handled (saves before exit), but hard-killing the terminal may lose the last unsaved change.
+Resolved tickets must be reopened before they can return to work. The work queue contains only `open` and `in_progress` tickets, sorted by priority (critical first) and then by numeric ticket ID ascending.
 
-No user authentication — anyone with terminal access can create, assign, or transition tickets.
+## Where ticket data is saved
 
-Single-user CLI with no concurrent access control. Running two instances at once can overwrite each other's changes.
+The application stores tickets as JSON in `data/tickets.json`, configured by `DEFAULT_PATH` in `campusflow/storage.py`. The `data/tickets.json` file is ignored by Git so local ticket data is not committed.
 
-Priority rules are fixed in code; there is no admin UI to change them.
+- The data directory is created when saving if it does not exist.
+- On startup, if the file is missing, CampusFlow starts with an empty ticket list.
+- To start fresh, **stop the application first**, then remove the file:
 
-No historical log of status changes — only the current state is stored.
+  ```bash
+  rm -f data/tickets.json
+  ```
 
-Pull requests
-Engineer A: PR_LINK_A
+- If the file contains invalid JSON or the wrong top-level structure, loading raises `StorageError`; the file is not silently replaced with an empty list. Fix or move the damaged file before restarting.
 
-Engineer B: PR_LINK_B
+## Known limitations
 
-CLI menu (Issue #9): PR_LINK_9
+- Tickets are stored locally in one JSON file; there is no database, authentication, or multi-user concurrency control.
+- Running multiple instances at once can cause one instance to overwrite another instance's changes.
+- Priority rules are fixed in code and cannot be configured through the CLI.
+- Only the current ticket status is stored; there is no audit trail or status-change history.
+- Keyboard interruption and end-of-file are handled at the menu prompt, but interruption during a feature's prompts is not handled by the same exit path.
+- Storage errors stop startup, but the CLI does not yet provide a dedicated recovery screen; Python may display a traceback.
 
-Documentation (Issue #11): PR_LINK_11
+## Project documentation
+
+- [Design decisions](docs/design-decisions.md)
+- [AI learning log](docs/ai-learning-log.md)
