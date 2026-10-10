@@ -1,59 +1,91 @@
 # AI Learning Log — CampusFlow
 
-This log records learning points connected to the implementation and verification work in this repository. References point to actual project files and merged pull requests. The entries are reflections, not a verbatim transcript of prompts; each fellow should adjust the wording to match their own experience before assessment submission.
+Each fellow records at least three AI interactions. At least one interaction per fellow documents how an AI suggestion was verified, corrected, improved, or rejected.
 
-## Kristopher Okoh — Engineer A
+> **Accuracy note:** These entries are first-person reflections supplied for this log. Each fellow should review and edit their section so it accurately represents their own experience before assessment submission.
 
-### Entry 1: Validate before mutating shared state
+---
 
-- **Concept:** Input validation and keeping a failed operation from partially changing the ticket list.
-- **Project evidence:** `campusflow/tickets.py`; [PR #13 — ticket creation and validation](https://github.com/kristopher1027/campus-flow/pull/13).
-- **My verification:** `tests/test_tickets.py` includes `test_failed_creation_leaves_list_unchanged`, which snapshots the list and checks that invalid creation does not append a ticket.
-- **Critical evaluation:** It is not enough for an error message to appear; the state must also remain unchanged. A review suggestion is only useful if the test checks that invariant, not merely that an exception was raised.
-- **Changed/rejected advice:** No specific AI advice change is recorded in the repository evidence; add a concrete example here if one occurred.
+## Fellow A — Christopher Okoh
 
-### Entry 2: Make priority rules explicit and test boundaries
+### Interaction 1 — JSON round-trip with `json.dump` and `json.load`
 
-- **Concept:** Ordered business rules can overlap, so rule order and boundary tests matter.
-- **Project evidence:** `calculate_priority()` in `campusflow/tickets.py`; [PR #15 — priority engine](https://github.com/kristopher1027/campus-flow/pull/15).
-- **My verification:** `tests/test_tickets.py` covers the required priority examples and boundary cases such as 9 versus 10 affected users.
-- **What I learned:** The high-urgency-and-large-impact condition must be checked before the broader high-urgency-or-large-impact condition, otherwise a critical ticket would be classified as high.
-- **Changed/rejected advice:** No specific change to AI advice is recorded; document one only if it reflects what actually happened.
+- **Problem:** I needed to save the ticket list to a file and load it back on startup, without losing data or crashing when the file was missing.
+- **My initial understanding:** I thought I had to manually check for the file first and use `try/except` around `open`.
+- **Prompt to AI:** “Explain `json.dump()` and `json.load()` with a five-line example unrelated to my project. Then quiz me on the difference between `dump` and `dumps`. I want to write the storage module myself.”
+- **Useful AI guidance:** `json.dump(obj, f)` writes to an open file handle and `json.load(f)` reads from one. `dumps` and `loads` are the string versions. A missing file needs to be handled explicitly.
+- **My independent experiment/test:** I wrote a small script in `/tmp` that saved `{"a": 1}` to a file and read it back, then added a round-trip test in `tests/test_storage.py`.
+- **Verification source or result:** Ran `python3 -m unittest discover -s tests -v`; the storage tests passed.
+- **Decision:** Accepted the round-trip pattern and handled a missing data file as an empty ticket list.
+- **Related project evidence:** [`campusflow/storage.py`](../campusflow/storage.py), [`tests/test_storage.py`](../tests/test_storage.py).
+- **What I can now explain without AI:** `json.dump` writes an object to a stream while `json.dumps` returns a JSON string. `json.load` reads JSON from a stream; malformed JSON raises `JSONDecodeError`, which the application must handle deliberately.
 
-### Entry 3: Persistence failures must not look like an empty database
+### Interaction 2 — Validating input without relying only on `str.isdigit()`
 
-- **Concept:** Missing data and corrupted data are different situations and should not have the same recovery behavior.
-- **Project evidence:** `campusflow/storage.py`; `tests/test_storage.py`; [PR #18 — JSON storage](https://github.com/kristopher1027/campus-flow/pull/18).
-- **My verification:** Storage tests check that a missing file returns an empty list, malformed JSON raises `StorageError`, and a corrupt file is not overwritten.
-- **Critical evaluation:** Automatically resetting to an empty list after a parse error would make the CLI seem to work but could destroy users' existing tickets on the next save. A safer design stops and requires the damaged file to be handled explicitly.
-- **Changed/rejected advice:** No specific AI advice change is recorded; add a real example if applicable.
+- **Problem:** I wanted to reject invalid `affected_users` input—including zero, negative numbers, decimals, and text—with a clear error.
+- **My initial understanding:** I planned to use `int(input())` inside a `try/except` block. It worked, but I wanted to understand the alternatives and their trade-offs.
+- **Prompt to AI:** “Show me the difference between `str.isdigit()` and `try/except int()` for validating positive integers, with a small example. Give me the trade-offs, not the code for my project.”
+- **Useful AI guidance:** `.isdigit()` returns true for strings such as `"0"` and for some Unicode digits. Parsing with `int()` still requires a separate range check.
+- **My independent experiment/test:** I compared both approaches with `"12"`, `"0"`, `"-3"`, `"2.5"`, `"abc"`, and `"١٢٣"`.
+- **Verification source or result:** The experiment confirmed that `.isdigit()` alone does not validate a positive integer. I chose integer parsing with an explicit greater-than-zero check.
+- **Decision:** **Improved** the approach by combining `try/except int()` with a range check, rather than relying on `.isdigit()`.
+- **Related project evidence:** [`campusflow/tickets.py`](../campusflow/tickets.py), [`tests/test_tickets.py`](../tests/test_tickets.py).
+- **What I can now explain without AI:** A string digit check is not the same as validating the domain rule. Parsing and then checking the allowed range makes the intended constraint explicit.
 
-## Moshel9ice — Engineer B
+### Interaction 3 — Critical evaluation: AI suggested a global counter for ticket IDs
 
-### Entry 1: Encode workflow rules as explicit transitions
+- **Problem:** I needed to generate unique ticket IDs such as `T001`, `T002`, and so on.
+- **My initial understanding:** I asked AI for a simple counter.
+- **Prompt to AI:** “How do I generate sequential ticket IDs in Python?”
+- **Useful AI guidance:** AI suggested a counter that increments and formats the value, for example `f"T{counter:03d}"`. That is simple while the counter remains alive.
+- **My independent experiment/test:** I traced a restart scenario: create three tickets, exit, reload from JSON, and create a fourth ticket. An in-memory counter would reset and could generate an ID already in use.
+- **Verification source or result:** The restart scenario showed that a process-local counter is insufficient for persisted data. The design decision is documented in [`docs/design-decisions.md`](design-decisions.md), and ID behavior is covered in [`tests/test_tickets.py`](../tests/test_tickets.py).
+- **Decision:** **Rejected** the global-counter suggestion for this persisted workflow. The next ID must be derived from the stored tickets.
+- **Related project evidence:** [`campusflow/tickets.py`](../campusflow/tickets.py), [`docs/design-decisions.md`](design-decisions.md), [`tests/test_tickets.py`](../tests/test_tickets.py).
+- **What I can now explain without AI:** Persistent systems cannot rely on an in-memory counter that resets between runs. ID generation must account for IDs already present in saved data.
 
-- **Concept:** A workflow should define allowed state changes instead of accepting any status supplied by a user.
-- **Project evidence:** `transition_status()` in `campusflow/workflow.py`; `tests/test_workflow.py`; [PR #12 — assignment, workflow, queue and reports](https://github.com/kristopher1027/campus-flow/pull/12).
-- **My verification:** Tests check that an unassigned ticket cannot start, an assigned ticket can move to `in_progress`, and an in-progress ticket can be resolved.
-- **Critical evaluation:** A happy-path test alone would not prove the workflow is enforced. Invalid transitions and the assignment prerequisite need their own assertions.
-- **Changed/rejected advice:** No specific AI advice change is recorded; document a real example if one occurred.
+---
 
-### Entry 2: Prioritize the active queue deterministically
+## Fellow B — Moses Attah
 
-- **Concept:** A work queue should show actionable tickets first and have a stable tie-breaker for tickets with equal priority.
-- **Project evidence:** `work_queue()` in `campusflow/reports.py`; `tests/test_reports.py`; [PR #12](https://github.com/kristopher1027/campus-flow/pull/12).
-- **My verification:** The tests cover exclusion of resolved tickets, priority ordering, and numeric ID ordering for equal-priority tickets.
-- **What I learned:** Sorting IDs as strings can put `T010` before or after IDs unexpectedly in more general ID formats; parsing the numeric suffix makes the intended ordering explicit.
-- **Changed/rejected advice:** No specific AI advice change is recorded; add one only if it reflects the actual development process.
+### Interaction 1 — Custom sort key with tuple ordering
 
-### Entry 3: Keep reports separate from terminal interaction
+- **Problem:** I needed to sort tickets by priority first, then by numeric ticket ID. I did not understand how `sorted()` could handle two levels of ordering.
+- **My initial understanding:** I thought I would need to sort twice—once by ID and once by priority.
+- **Prompt to AI:** “Explain how Python's `sorted()` with a tuple key handles two-level ordering, with a small unrelated example. Don't write my project's code.”
+- **Useful AI guidance:** A tuple key such as `(priority_rank, numeric_id)` sorts by the first element and uses the second to break ties.
+- **My independent experiment/test:** I compared a tuple-key sort with a two-pass approach and checked that both produced the expected order.
+- **Verification source or result:** The behavior is covered by [`tests/test_reports.py`](../tests/test_reports.py), including tests for priority ordering and numeric-ID tie-breaking.
+- **Decision:** Accepted the tuple-key approach because it expresses both sort criteria in one key.
+- **Related project evidence:** [`campusflow/reports.py`](../campusflow/reports.py), [`tests/test_reports.py`](../tests/test_reports.py), commit `06df50b`.
+- **What I can now explain without AI:** Python compares tuples lexicographically: it compares the first element and consults later elements when earlier elements tie.
 
-- **Concept:** Reporting logic is easier to test when counting and sorting are separated from printing menu output.
-- **Project evidence:** `generate_report()`, `report_summary()`, and `format_report()` in `campusflow/reports.py`; `tests/test_reports.py`; [PR #17 — ticket summary reports](https://github.com/kristopher1027/campus-flow/pull/17).
-- **My verification:** Tests check empty reports, totals, counts by status and priority, and consistent formatting. The CLI calls report functions from `main.py`.
-- **Critical evaluation:** A report can display plausible output while still omitting zero-count statuses or priorities. Tests should check the complete result shape, not just one visible count.
-- **Changed/rejected advice:** No specific AI advice change is recorded; add a concrete example if one occurred.
+### Interaction 2 — Guard clauses versus nested conditionals
 
-## Before submitting
+- **Problem:** In `transition_status`, I needed to reject invalid status transitions without deeply nested conditionals.
+- **My initial understanding:** I used nested `if` blocks, but the logic became difficult to read and I missed a branch.
+- **Prompt to AI:** “Show me the guard-clause pattern for validating a multi-branch state machine, with a tiny unrelated example. I want to write the project code myself.”
+- **Useful AI guidance:** Guard clauses handle invalid cases early with a return or exception, keeping the valid path less nested.
+- **My independent experiment/test:** I refactored the transition logic to check valid transitions and raise `ValueError` for invalid ones. I then ran the targeted invalid-transition tests.
+- **Verification source or result:** The targeted workflow tests passed, including invalid transitions and transitions that must not skip required states.
+- **Decision:** Accepted the guard-clause pattern because it made the allowed transitions easier to inspect.
+- **Related project evidence:** [`campusflow/workflow.py`](../campusflow/workflow.py), [`tests/test_workflow.py`](../tests/test_workflow.py), commit `dcc5570`.
+- **What I can now explain without AI:** Guard clauses make validation paths explicit and reduce nesting, but the allowed transitions still need to be defined and tested correctly.
 
-The code and PR references above are verifiable, but personal reflection must remain truthful. Each fellow should replace any generic wording with the actual concept discussed with AI, what they independently ran or inspected, and any advice they changed or rejected. Do not claim an AI suggestion was accepted, rejected, or tested unless that really happened.
+### Interaction 3 — Critical evaluation: AI suggested alphabetical priority sorting
+
+- **Problem:** I asked AI how to sort a list of dictionaries by a string `priority` field.
+- **My initial understanding:** I initially expected a straightforward sort by the field to match the required priority order.
+- **Prompt to AI:** “How do I sort a list of dicts by a string `priority` field?”
+- **Useful AI guidance:** AI suggested `sorted(tickets, key=lambda t: t["priority"])`, which sorts the values alphabetically.
+- **My independent experiment/test:** I compared alphabetical ordering with the required semantic order: `critical`, `high`, `medium`, `low`. Alphabetical ordering puts `low` before `medium`, which violates the specification.
+- **Verification source or result:** The required order is defined by the project specification and tested in [`tests/test_reports.py`](../tests/test_reports.py).
+- **Decision:** **Rejected** alphabetical sorting and used an explicit priority-rank mapping in the report implementation.
+- **Related project evidence:** [`campusflow/reports.py`](../campusflow/reports.py), [`tests/test_reports.py`](../tests/test_reports.py), commit `06df50b`.
+- **What I can now explain without AI:** Alphabetical order is not a substitute for a domain-specific ranking. When a specification defines semantic order, encode that order explicitly and test it.
+
+---
+
+## Before submission
+
+Both fellows should review their own section and confirm that the prompts, experiments, decisions, and test results accurately describe what they personally did. Replace or remove any detail that cannot be substantiated, and add exact commit hashes or pull-request links where the assessment template requires them.
