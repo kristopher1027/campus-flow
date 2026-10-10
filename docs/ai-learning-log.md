@@ -86,6 +86,3 @@ Each fellow records at least three AI interactions. At least one interaction per
 
 ---
 
-## Before submission
-
-Both fellows should review their own section and confirm that the prompts, experiments, decisions, and test results accurately describe what they personally did. Replace or remove any detail that cannot be substantiated, and add exact commit hashes or pull-request links where the assessment template requires them.
